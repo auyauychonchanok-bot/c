@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>บุกบ้านผีสิง เรียงตัวเลข</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Kanit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #050b14;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 56.25vw; /* 16:9 Aspect Ratio */
+            max-width: 1280px;
+            max-height: 720px;
+            background-color: #000;
+            box-shadow: 0 0 30px rgba(0, 238, 255, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* Ambient Glow & Background Overlay */
+        .glow-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            background: radial-gradient(circle at 50% 30%, rgba(0, 247, 255, 0.12), transparent 70%);
+        }
+
+        /* Canvas สำหรับเอฟเฟกต์ไฟลอยล่อง (แสดงผลทุกหน้า) */
+        #global-embers-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 90;
+        }
+
+        /* Moving Fireflies / Light Orbs เต็มจอ */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            background: #00ffff;
+            box-shadow: 0 0 12px #00ffff, 0 0 22px #00f7ff, 0 0 32px #ffffff;
+            pointer-events: none;
+            z-index: 6;
+            animation: floatOrb linear infinite alternate;
+        }
+        @keyframes floatOrb {
+            0% { transform: translate(0, 0) scale(0.6); opacity: 0.2; }
+            50% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.3); }
+            100% { transform: translate(calc(var(--dx) * -1), calc(var(--dy) * 1.5)) scale(0.5); opacity: 0.3; }
+        }
+
+        /* Floating Screen Ghosts (ผีพื้นหลัง) */
+        .screen-ghost {
+            position: absolute;
+            font-size: 2.8rem;
+            pointer-events: none;
+            z-index: 7;
+            opacity: 0.8;
+            filter: drop-shadow(0 0 12px rgba(0, 247, 255, 0.8));
+            animation: floatGhost 7s infinite ease-in-out alternate;
+        }
+        @keyframes floatGhost {
+            0% { transform: translate(0, 0) rotate(-5deg); }
+            50% { transform: translate(30px, -25px) rotate(5deg) scale(1.1); }
+            100% { transform: translate(-20px, 20px) rotate(-3deg); }
+        }
+
+        /* 👻 ตัวละครผีเคลื่อนไหวลอยไปมาในเกม (Interactive Animated Ghost) */
+        .roaming-ghost {
+            position: absolute;
+            font-size: 3.2rem;
+            z-index: 25;
+            cursor: pointer;
+            filter: drop-shadow(0 0 15px rgba(0, 247, 255, 0.9)) drop-shadow(0 0 30px rgba(255, 0, 128, 0.6));
+            transition: transform 0.2s ease, opacity 0.3s ease;
+            will-change: transform, left, top;
+        }
+        .roaming-ghost:hover {
+            transform: scale(1.3) rotate(15deg);
+        }
+        .roaming-ghost.scared {
+            animation: ghostScared 0.4s ease forwards;
+        }
+        @keyframes ghostScared {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.6) rotate(-20deg); opacity: 0.8; }
+            100% { transform: scale(0) rotate(180deg); opacity: 0; }
+        }
+
+        /* ---------------- Screens ---------------- */
+        .screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .screen.active { display: flex; }
+
+        /* Start Screen (เปลี่ยนนามสกุลเป็น c1.png) */
+        #start-screen {
+            background: url('./c1.png') center/cover no-repeat;
+            text-align: center;
+            padding: 20px;
+        }
+        .game-title {
+            font-size: 3.5rem;
+            color: #00f7ff;
+            text-shadow: 0 0 20px #00f7ff, 0 0 40px #0077ff, 0 4px 10px #000;
+            margin-bottom: 15px;
+            animation: floatText 3s ease-in-out infinite alternate;
+        }
+        .game-desc {
+            font-size: 1.4rem;
+            color: #b3f0ff;
+            max-width: 650px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+            background: rgba(0, 15, 35, 0.75);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(0, 247, 255, 0.4);
+            backdrop-filter: blur(4px);
+        }
+        @keyframes floatText {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-10px); }
+        }
+
+        /* Buttons & Audio Toggle */
+        .btn {
+            background: linear-gradient(135deg, #00d2ff 0%, #0066ff 100%);
+            color: #fff;
+            border: 2px solid #00f7ff;
+            padding: 14px 45px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.6);
+            transition: all 0.3s ease;
+            outline: none;
+            margin: 10px;
+        }
+        .btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 30px rgba(0, 247, 255, 0.9);
+        }
+
+        #audio-toggle {
+            position: absolute;
+            top: 15px; right: 15px;
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            background: rgba(0, 20, 40, 0.8);
+            border: 2px solid #00f7ff;
+            color: #fff;
+            cursor: pointer;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ---------------- Gameplay & Locked Map Scene ---------------- */
+        #gameplay-screen {
+            background: #000;
+            overflow: hidden;
+        }
+
+        /* Map Viewport (เปลี่ยนนามสกุลเป็น c2.png) */
+        #map-viewport {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: url('./c2.png') center/cover no-repeat;
+            transform: none !important;
+        }
+
+        #map-canvas, #fx-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+        #map-canvas { z-index: 2; }
+        #fx-canvas { z-index: 20; }
+
+        /* Map Nodes */
+        .node {
+            position: absolute;
+            width: 50px; height: 50px;
+            margin-left: -25px; margin-top: -25px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00d2ff, #003366);
+            border: 3px solid #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #fff;
+            z-index: 3;
+            box-shadow: 0 0 15px rgba(0,255,255,0.7);
+        }
+        .node.passed-correct::after {
+            content: "✓"; position: absolute; top: -10px; right: -10px;
+            background: #00ff66; color: #000; border-radius: 50%; width: 22px; height: 22px;
+            font-size: 0.9rem; display: flex; justify-content: center; align-items: center; font-weight: bold;
+        }
+        .node.passed-wrong::after {
+            content: "✕"; position: absolute; top: -10px; right: -10px;
+            background: #ff3366; color: #fff; border-radius: 50%; width: 22px; height: 22px;
+            font-size: 0.9rem; display: flex; justify-content: center; align-items: center; font-weight: bold;
+        }
+        .node.boss-node {
+            width: 65px; height: 65px; margin-left: -32.5px; margin-top: -32.5px;
+            background: radial-gradient(circle, #ff0055, #440011);
+            border-color: #ff0055;
+            box-shadow: 0 0 25px rgba(255,0,85,0.9);
+            animation: bossPulse 1.5s infinite alternate;
+        }
+        @keyframes bossPulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.15); }
+        }
+
+        /* Player Character (นักรบ) */
+        #player {
+            position: absolute;
+            width: 50px; height: 50px;
+            margin-left: -25px; margin-top: -25px;
+            font-size: 2.5rem;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 4;
+            transition: left 0.8s linear, top 0.8s linear;
+            filter: drop-shadow(0 0 10px #00f7ff);
+        }
+
+        /* Top HUD */
+        #hud {
+            position: absolute;
+            top: 15px; left: 15px;
+            background: rgba(0, 15, 30, 0.8);
+            border: 1px solid #00f7ff;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            z-index: 15;
+            box-shadow: 0 0 10px rgba(0,255,255,0.3);
+        }
+
+        /* Quiz Modal Area */
+        #quiz-modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 20, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 30;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #quiz-modal.active { display: flex; }
+
+        .quiz-card {
+            background: linear-gradient(180deg, rgba(5, 30, 60, 0.95) 0%, rgba(2, 15, 35, 0.95) 100%);
+            border: 2px solid #00f7ff;
+            border-radius: 20px;
+            padding: 25px 35px;
+            width: 85%;
+            max-width: 750px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 247, 255, 0.5);
+            animation: popup 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popup {
+            0% { transform: scale(0.7); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .question-title {
+            font-size: 1.6rem;
+            color: #ffee00;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255, 238, 0, 0.5);
+        }
+
+        /* Interactive Drag & Click Containers */
+        .sort-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0;
+            min-height: 70px;
+            padding: 10px;
+            border-radius: 12px;
+            flex-wrap: wrap;
+        }
+        #source-cards {
+            background: rgba(0, 247, 255, 0.05);
+            border: 1px stroke rgba(0,247,255,0.2);
+        }
+
+        .number-box {
+            width: 85px; height: 65px;
+            background: linear-gradient(145deg, #0055ff, #002288);
+            border: 2px solid #00f7ff;
+            border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.6rem; font-weight: bold; color: #fff;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            transition: all 0.2s ease;
+        }
+        .number-box:hover { transform: scale(1.05); }
+        .number-box.selected {
+            border-color: #ffee00;
+            box-shadow: 0 0 20px #ffee00;
+            transform: scale(1.1);
+            background: linear-gradient(145deg, #0088ff, #0044bb);
+        }
+
+        .slot {
+            width: 85px; height: 65px;
+            border: 2px dashed #00f7ff;
+            border-radius: 12px;
+            background: rgba(0, 247, 255, 0.08);
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .slot:hover { background: rgba(0, 247, 255, 0.18); }
+
+        /* Result Screen */
+        #result-screen {
+            background: rgba(2, 10, 25, 0.95);
+            text-align: center;
+        }
+        .result-title { font-size: 3.5rem; margin-bottom: 15px; }
+        .win-title { color: #00ff66; text-shadow: 0 0 20px #00ff66; }
+        .lose-title { color: #ff3366; text-shadow: 0 0 20px #ff3366; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Glow Overlay & Dynamic Ambient Layers -->
+        <div class="glow-overlay"></div>
+        <div id="orbs-layer"></div>
+        <div id="ghosts-layer"></div>
+
+        <!-- Canvas สำหรับไฟลอยล่อง (แสดงผลทุกหน้า) -->
+        <canvas id="global-embers-canvas"></canvas>
+
+        <!-- Audio Toggle Button -->
+        <button id="audio-toggle" onclick="toggleAudio()">🔊</button>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active">
+            <h1 class="game-title">บุกบ้านผีสิง เรียงตัวเลข</h1>
+            <div class="game-desc">
+                ยินดีต้อนรับสู่ภารกิจผจญภัย! ช่วยท่านนักรบเรียงลำดับตัวเลข <b>"จากมากไปน้อย"</b> และ <b>"จากน้อยไปมาก"</b> เพื่อผ่านด่านบ้านผีสิงทั้ง 10 ด่าน (ทำคะแนนให้ได้ 7/10 ขึ้นไป) แล้วพิชิตชัยชนะ!
+            </div>
+            <button class="btn" onclick="startGame()">ลุย ➔</button>
+        </div>
+
+        <!-- Gameplay Screen -->
+        <div id="gameplay-screen" class="screen">
+            <!-- HUD -->
+            <div id="hud">ด่าน: <span id="hud-stage">1</span>/10 | คะแนน: <span id="hud-score">0</span></div>
+
+            <!-- Viewport & Map -->
+            <div id="map-viewport">
+                <canvas id="map-canvas"></canvas>
+                <!-- Player Character: นักรบ ⚔️ -->
+                <div id="player">⚔️</div>
+
+                <!-- 👻 ตัวละครผีเคลื่อนไหวลอยไปลอยมา -->
+                <div id="roaming-ghost-1" class="roaming-ghost" onclick="scareGhost(this)">👻</div>
+                <div id="roaming-ghost-2" class="roaming-ghost" onclick="scareGhost(this)">👻</div>
+            </div>
+
+            <!-- Quiz Modal -->
+            <div id="quiz-modal">
+                <div class="quiz-card">
+                    <div class="question-title" id="quiz-instruction">เรียงลำดับตัวเลข</div>
+                    <p style="font-size: 0.95rem; color: #a0e0ff;">คลิกเลือกตัวเลข แล้วคลิกช่องวาง (หรือลากวางสลับตำแหน่งได้ตามชอบ)</p>
+                    
+                    <!-- Drop Slots Target Area -->
+                    <div class="sort-container" id="drop-slots"></div>
+                    <!-- Source Cards Area -->
+                    <div class="sort-container" id="source-cards"></div>
+
+                    <button class="btn" style="font-size: 1.2rem; padding: 10px 32px;" onclick="submitAnswer()">ยืนยัน ➔</button>
+                </div>
+            </div>
+
+            <canvas id="fx-canvas"></canvas>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="screen">
+            <h1 id="result-title" class="result-title">สรุปผลการแข่งขัน</h1>
+            <p id="result-desc" style="font-size: 1.5rem; margin-bottom: 25px; color: #fff;"></p>
+            <button class="btn" onclick="startGame()">เล่นอีกครั้ง 🔄</button>
+        </div>
+    </div>
+
+    <script>
+        /* ---------------- Generator คำถามแบบห้ามเลขซ้ำ & บอสสุดท้าทาย ---------------- */
+        
+        function generateUniqueNumbers() {
+            const set = new Set();
+            while (set.size < 5) {
+                set.add(Math.floor(Math.random() * 980) + 10);
+            }
+            return Array.from(set);
+        }
+
+        function generateTrickyBossNumbers() {
+            const set = new Set();
+            
+            const d1 = Math.floor(Math.random() * 8) + 1;
+            const d2 = 0;
+            const d3 = (d1 + Math.floor(Math.random() * 7) + 1) % 10;
+            
+            const p1 = parseInt(`${d1}${d2}${d3}`);
+            const p2 = parseInt(`${d1}${d3}${d2}`);
+            const p3 = parseInt(`${d3}${d2}${d1}`);
+            const p4 = parseInt(`${d3}${d1}${d2}`);
+
+            const base = Math.floor(Math.random() * 700) + 100;
+            const near1 = base;
+            const near2 = base + 9;
+
+            [p1, p2, p3, p4, near1, near2].forEach(num => {
+                if (num >= 100 && num <= 999) set.add(num);
+            });
+
+            while (set.size < 5) {
+                set.add(Math.floor(Math.random() * 899) + 100);
+            }
+
+            return Array.from(set).slice(0, 5);
+        }
+
+        /* 10 Map Node Locations */
+        const NODE_POSITIONS = [
+            { x: 88, y: 18 }, { x: 70, y: 25 }, { x: 50, y: 15 },
+            { x: 30, y: 32 }, { x: 45, y: 50 }, { x: 75, y: 52 },
+            { x: 82, y: 72 }, { x: 60, y: 80 }, { x: 35, y: 70 },
+            { x: 15, y: 82 }
+        ];
+
+        /* State Variables */
+        let currentStage = 0;
+        let score = 0;
+        let selectedQuestions = [];
+        let stageResults = new Array(10).fill(null);
+        let audioMuted = false;
+        let audioCtx = null;
+        let activeSelectedCard = null;
+
+        /* Ambient Audio Variables (Piano Synth Loop) */
+        let pianoInterval = null;
+        let isPianoPlaying = false;
+
+        /* 👻 ระบบคำนวณการเคลื่อนที่ของผี (Ghost Physics Engine) */
+        const ghosts = [
+            { id: 'roaming-ghost-1', x: 20, y: 30, vx: 0.15, vy: 0.12, angle: 0, speed: 0.02 },
+            { id: 'roaming-ghost-2', x: 70, y: 60, vx: -0.18, vy: 0.1, angle: Math.PI, speed: 0.025 }
+        ];
+
+        function animateGhosts() {
+            ghosts.forEach(g => {
+                const el = document.getElementById(g.id);
+                if (!el || el.classList.contains('scared')) return;
+
+                g.angle += g.speed;
+                g.x += g.vx + Math.sin(g.angle) * 0.15;
+                g.y += g.vy + Math.cos(g.angle * 0.8) * 0.15;
+
+                // ชนขอบแล้วเด้งกลับ
+                if (g.x < 5 || g.x > 90) g.vx *= -1;
+                if (g.y < 10 || g.y > 85) g.vy *= -1;
+
+                el.style.left = g.x + '%';
+                el.style.top = g.y + '%';
+            });
+            requestAnimationFrame(animateGhosts);
+        }
+
+        function scareGhost(ghostEl) {
+            playPianoNote(880, 0.4);
+            ghostEl.classList.add('scared');
+            
+            setTimeout(() => {
+                const gObj = ghosts.find(g => g.id === ghostEl.id);
+                if (gObj) {
+                    gObj.x = Math.random() * 70 + 15;
+                    gObj.y = Math.random() * 60 + 20;
+                    ghostEl.style.left = gObj.x + '%';
+                    ghostEl.style.top = gObj.y + '%';
+                }
+                ghostEl.classList.remove('scared');
+            }, 1200);
+        }
+
+        /* ---------------- Web Audio API & Soft Piano Synthesizer ---------------- */
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            startPianoAmbient();
+        }
+
+        function playPianoNote(freq, duration = 1.2, gainVol = 0.1) {
+            if (audioMuted || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(gainVol, audioCtx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        function startPianoAmbient() {
+            if (isPianoPlaying) return;
+            isPianoPlaying = true;
+
+            const pianoNotes = [
+                261.63, 329.63, 392.00, 523.25,
+                220.00, 261.63, 329.63, 440.00,
+                174.61, 220.00, 261.63, 349.23,
+                196.00, 246.94, 293.66, 392.00
+            ];
+            let noteIndex = 0;
+
+            pianoInterval = setInterval(() => {
+                if (!audioMuted) {
+                    const freq = pianoNotes[noteIndex % pianoNotes.length];
+                    playPianoNote(freq, 1.8, 0.06);
+                    noteIndex++;
+                }
+            }, 600);
+        }
+
+        function soundClick() { playPianoNote(523.25, 0.4, 0.08); }
+        
+        function soundCorrect() {
+            playPianoNote(523.25, 0.6, 0.12);
+            setTimeout(() => playPianoNote(659.25, 0.6, 0.12), 120);
+            setTimeout(() => playPianoNote(783.99, 0.9, 0.15), 240);
+        }
+
+        function soundWrong() {
+            playPianoNote(311.13, 0.6, 0.12);
+            setTimeout(() => playPianoNote(293.66, 0.8, 0.12), 150);
+        }
+
+        function soundFanfare() {
+            const winChord = [523.25, 659.25, 783.99, 1046.50];
+            winChord.forEach((f, i) => {
+                setTimeout(() => playPianoNote(f, 2.0, 0.15), i * 180);
+            });
+        }
+
+        function toggleAudio() {
+            initAudio();
+            audioMuted = !audioMuted;
+            document.getElementById('audio-toggle').innerText = audioMuted ? '🔇' : '🔊';
+        }
+
+        /* ---------------- Floating Embers Animation ---------------- */
+        const emberParticles = [];
+        function initGlobalEmbers() {
+            const canvas = document.getElementById('global-embers-canvas');
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            emberParticles.length = 0;
+            for (let i = 0; i < 45; i++) {
+                emberParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 3.5 + 1,
+                    vy: Math.random() * 1.5 + 0.5,
+                    vx: (Math.random() - 0.5) * 0.8,
+                    alpha: Math.random() * 0.8 + 0.2,
+                    color: Math.random() > 0.4 ? '#ff5500' : (Math.random() > 0.5 ? '#ffaa00' : '#00ffff')
+                });
+            }
+        }
+
+        function animateGlobalEmbers() {
+            const canvas = document.getElementById('global-embers-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            emberParticles.forEach(p => {
+                p.y -= p.vy;
+                p.x += p.vx + Math.sin(p.y * 0.02) * 0.3;
+
+                if (p.y < -10) {
+                    p.y = canvas.height + 10;
+                    p.x = Math.random() * canvas.width;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            requestAnimationFrame(animateGlobalEmbers);
+        }
+
+        /* ---------------- Ambient Effects ---------------- */
+        function spawnAmbientEffects() {
+            const ghostLayer = document.getElementById('ghosts-layer');
+            const orbLayer = document.getElementById('orbs-layer');
+            ghostLayer.innerHTML = '';
+            orbLayer.innerHTML = '';
+
+            for (let i = 0; i < 6; i++) {
+                const ghost = document.createElement('div');
+                ghost.className = 'screen-ghost';
+                ghost.innerText = '👻';
+                ghost.style.left = (Math.random() * 85 + 5) + '%';
+                ghost.style.top = (Math.random() * 70 + 10) + '%';
+                ghost.style.animationDelay = (Math.random() * 4) + 's';
+                ghost.style.animationDuration = (Math.random() * 4 + 5) + 's';
+                ghostLayer.appendChild(ghost);
+            }
+
+            for (let i = 0; i < 25; i++) {
+                const orb = document.createElement('div');
+                orb.className = 'orb';
+                const size = Math.random() * 10 + 6;
+                orb.style.width = size + 'px';
+                orb.style.height = size + 'px';
+                orb.style.left = (Math.random() * 96) + '%';
+                orb.style.top = (Math.random() * 96) + '%';
+                
+                const dx = (Math.random() * 120 - 60) + 'px';
+                const dy = (Math.random() * 140 - 70) + 'px';
+                orb.style.setProperty('--dx', dx);
+                orb.style.setProperty('--dy', dy);
+
+                orb.style.animationDuration = (Math.random() * 6 + 5) + 's';
+                orb.style.animationDelay = (Math.random() * 5) + 's';
+                orbLayer.appendChild(orb);
+            }
+        }
+
+        /* ---------------- Game Flow & Initialization ---------------- */
+        function startGame() {
+            initAudio();
+            soundClick();
+
+            currentStage = 0;
+            score = 0;
+            stageResults.fill(null);
+
+            selectedQuestions = [];
+            for (let i = 0; i < 9; i++) {
+                selectedQuestions.push({
+                    type: i % 2 === 0 ? 'ASC' : 'DESC',
+                    numbers: generateUniqueNumbers(),
+                    isBoss: false
+                });
+            }
+            selectedQuestions.push({
+                type: 'DESC',
+                numbers: generateTrickyBossNumbers(),
+                isBoss: true
+            });
+
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('gameplay-screen').classList.add('active');
+
+            spawnAmbientEffects();
+            updateHUD();
+            buildMapNodes();
+            resizeCanvas();
+
+            movePlayerToNode(0, () => {
+                setTimeout(showQuizModal, 400);
+            });
+        }
+
+        function buildMapNodes() {
+            const viewport = document.getElementById('map-viewport');
+            viewport.querySelectorAll('.node').forEach(n => n.remove());
+
+            NODE_POSITIONS.forEach((pos, idx) => {
+                const node = document.createElement('div');
+                node.className = `node ${idx === 9 ? 'boss-node' : ''}`;
+                node.id = `node-${idx}`;
+                node.innerText = idx === 9 ? '👑' : (idx + 1);
+                node.style.left = pos.x + '%';
+                node.style.top = pos.y + '%';
+                viewport.appendChild(node);
+            });
+        }
+
+        function drawMapPaths() {
+            const canvas = document.getElementById('map-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(0, 247, 255, 0.6)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 8]);
+
+            NODE_POSITIONS.forEach((pos, idx) => {
+                const px = (pos.x / 100) * w;
+                const py = (pos.y / 100) * h;
+                if (idx === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.stroke();
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const mapCanvas = document.getElementById('map-canvas');
+            const fxCanvas = document.getElementById('fx-canvas');
+
+            mapCanvas.width = container.clientWidth;
+            mapCanvas.height = container.clientHeight;
+            fxCanvas.width = container.clientWidth;
+            fxCanvas.height = container.clientHeight;
+
+            drawMapPaths();
+            initGlobalEmbers();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function movePlayerToNode(nodeIdx, callback) {
+            const player = document.getElementById('player');
+            const pos = NODE_POSITIONS[nodeIdx];
+            player.style.left = pos.x + '%';
+            player.style.top = pos.y + '%';
+            setTimeout(callback, 850);
+        }
+
+        /* ---------------- Dual Interaction: Drag & Drop + Click-to-Select ---------------- */
+        let currentDragItem = null;
+
+        function showQuizModal() {
+            activeSelectedCard = null;
+            const qData = selectedQuestions[currentStage];
+            const modal = document.getElementById('quiz-modal');
+            const title = document.getElementById('quiz-instruction');
+            const slotsContainer = document.getElementById('drop-slots');
+            const cardsContainer = document.getElementById('source-cards');
+
+            title.innerText = qData.type === 'ASC' ? 'เรียงลำดับตัวเลขจาก "น้อยไปมาก"' : 'เรียงลำดับตัวเลขจาก "มากไปน้อย"';
+            if (qData.isBoss) title.innerText = '🔥 ด่านบอสหลอนระวังโดนหลอก: ' + title.innerText;
+
+            slotsContainer.innerHTML = '';
+            cardsContainer.innerHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.addEventListener('dragover', handleDragOver);
+                slot.addEventListener('drop', handleDropToSlot);
+                slot.addEventListener('click', () => handleSlotClick(slot));
+                slotsContainer.appendChild(slot);
+            }
+
+            cardsContainer.addEventListener('dragover', handleDragOver);
+            cardsContainer.addEventListener('drop', handleDropToSource);
+            cardsContainer.addEventListener('click', (e) => {
+                if (e.target === cardsContainer && activeSelectedCard && activeSelectedCard.parentElement.classList.contains('slot')) {
+                    cardsContainer.appendChild(activeSelectedCard);
+                    clearCardSelection();
+                    soundClick();
+                }
+            });
+
+            const shuffledNums = [...qData.numbers].sort(() => Math.random() - 0.5);
+            shuffledNums.forEach((val, i) => {
+                const card = document.createElement('div');
+                card.className = 'number-box';
+                card.draggable = true;
+                card.innerText = val;
+                card.id = `card-${i}`;
+
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleCardClick(card);
+                });
+
+                cardsContainer.appendChild(card);
+            });
+
+            modal.classList.add('active');
+        }
+
+        function handleCardClick(card) {
+            soundClick();
+            if (card.parentElement.classList.contains('slot')) {
+                document.getElementById('source-cards').appendChild(card);
+                clearCardSelection();
+                return;
+            }
+
+            if (activeSelectedCard === card) {
+                clearCardSelection();
+                return;
+            }
+
+            clearCardSelection();
+            activeSelectedCard = card;
+            card.classList.add('selected');
+
+            const emptySlot = Array.from(document.querySelectorAll('.slot')).find(s => s.children.length === 0);
+            if (emptySlot) {
+                emptySlot.appendChild(activeSelectedCard);
+                clearCardSelection();
+            }
+        }
+
+        function handleSlotClick(slot) {
+            if (activeSelectedCard && slot.children.length === 0) {
+                soundClick();
+                slot.appendChild(activeSelectedCard);
+                clearCardSelection();
+            }
+        }
+
+        function clearCardSelection() {
+            if (activeSelectedCard) {
+                activeSelectedCard.classList.remove('selected');
+                activeSelectedCard = null;
+            }
+        }
+
+        function handleDragStart(e) {
+            clearCardSelection();
+            currentDragItem = e.target;
+            e.dataTransfer.setData('text/plain', e.target.id);
+        }
+
+        function handleDragOver(e) { e.preventDefault(); }
+
+        function handleDropToSlot(e) {
+            e.preventDefault();
+            if (!currentDragItem) return;
+            let targetSlot = e.target.classList.contains('slot') ? e.target : e.target.parentElement;
+            if (targetSlot && targetSlot.classList.contains('slot')) {
+                if (targetSlot.children.length === 0) {
+                    targetSlot.appendChild(currentDragItem);
+                    soundClick();
+                }
+            }
+        }
+
+        function handleDropToSource(e) {
+            e.preventDefault();
+            if (currentDragItem) {
+                document.getElementById('source-cards').appendChild(currentDragItem);
+                soundClick();
+            }
+        }
+
+        /* ---------------- Submit & Game Loop ---------------- */
+        function submitAnswer() {
+            clearCardSelection();
+            const slotsContainer = document.getElementById('drop-slots');
+            const filledSlots = slotsContainer.querySelectorAll('.number-box');
+
+            if (filledSlots.length < 5) {
+                alert('กรุณาเรียงตัวเลขลงในช่องให้ครบทั้ง 5 ช่องครับ!');
+                return;
+            }
+
+            const userArr = Array.from(filledSlots).map(el => parseInt(el.innerText));
+            const qData = selectedQuestions[currentStage];
+            const correctArr = [...qData.numbers].sort((a,b) => qData.type === 'ASC' ? a - b : b - a);
+
+            const isCorrect = userArr.every((v, i) => v === correctArr[i]);
+            const nodeEl = document.getElementById(`node-${currentStage}`);
+
+            document.getElementById('quiz-modal').classList.remove('active');
+
+            if (isCorrect) {
+                soundCorrect();
+                score++;
+                stageResults[currentStage] = true;
+                nodeEl.classList.add('passed-correct');
+            } else {
+                soundWrong();
+                stageResults[currentStage] = false;
+                nodeEl.classList.add('passed-wrong');
+            }
+
+            updateHUD();
+
+            setTimeout(() => {
+                if (currentStage < 9) {
+                    currentStage++;
+                    updateHUD();
+                    movePlayerToNode(currentStage, () => {
+                        setTimeout(showQuizModal, 400);
+                    });
+                } else {
+                    showResultScreen();
+                }
+            }, 800);
+        }
+
+        function updateHUD() {
+            document.getElementById('hud-stage').innerText = currentStage + 1;
+            document.getElementById('hud-score').innerText = score;
+        }
+
+        /* ---------------- สรุปผล & เกณฑ์คะแนน ---------------- */
+        function showResultScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const resScreen = document.getElementById('result-screen');
+            resScreen.classList.add('active');
+
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
+
+            const isWin = score >= 7;
+
+            if (isWin) {
+                soundFanfare();
+                title.innerText = '🎉 ภารกิจสำเร็จ! 🎉';
+                title.className = 'result-title win-title';
+                desc.innerText = `ยินดีด้วย! คุณทำได้ ${score}/10 คะแนน ผ่านเกณฑ์ 7 คะแนนขึ้นไป วิ่งเข้าเส้นชัยสำเร็จ!`;
+                startFireworks();
+            } else {
+                title.innerText = '💀 ไม่ผ่านเกณฑ์! 💀';
+                title.className = 'result-title lose-title';
+                desc.innerText = `คุณทำได้ ${score}/10 คะแนน (ต้องได้ 7 คะแนนขึ้นไปเพื่อผ่านภารกิจ) ลองใหม่อีกครั้งนะ!`;
+            }
+        }
+
+        function startFireworks() {
+            const canvas = document.getElementById('fx-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+
+            for (let i = 0; i < 90; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.5) * 14,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    life: 100
+                });
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach((p, index) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life--;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (p.life <= 0) particles.splice(index, 1);
+                });
+                if (particles.length > 0) requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        /* ---------------- Initial Boot ---------------- */
+        window.onload = () => {
+            spawnAmbientEffects();
+            initGlobalEmbers();
+            animateGlobalEmbers();
+            animateGhosts();
+        };
+    </script>
+</body>
+</html>
