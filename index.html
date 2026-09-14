@@ -36,6 +36,20 @@
             overflow: hidden;
         }
 
+        /* 🖼️ โลโก้ผู้สร้างเกม (มุมบนซ้าย) */
+        #creator-logo {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            height: 45px;
+            width: auto;
+            max-width: 140px;
+            object-fit: contain;
+            z-index: 100;
+            filter: drop-shadow(0 0 8px rgba(0, 247, 255, 0.8));
+            pointer-events: none;
+        }
+
         /* Ambient Glow & Background Overlay */
         .glow-overlay {
             position: absolute;
@@ -86,7 +100,7 @@
             100% { transform: translate(-20px, 20px) rotate(-3deg); }
         }
 
-        /* 👻 ตัวละครผีเคลื่อนไหวลอยไปมาในเกม (Interactive Animated Ghost) */
+        /* 👻 ตัวละครผีเคลื่อนไหวลอยไปมาในเกม */
         .roaming-ghost {
             position: absolute;
             font-size: 3.2rem;
@@ -121,7 +135,7 @@
         }
         .screen.active { display: flex; }
 
-        /* Start Screen (เปลี่ยนนามสกุลเป็น c1.png) */
+        /* Start Screen */
         #start-screen {
             background: url('./c1.png') center/cover no-repeat;
             text-align: center;
@@ -193,7 +207,7 @@
             overflow: hidden;
         }
 
-        /* Map Viewport (เปลี่ยนนามสกุลเป็น c2.png) */
+        /* Map Viewport */
         #map-viewport {
             position: absolute;
             top: 0; left: 0;
@@ -265,8 +279,9 @@
         /* Top HUD */
         #hud {
             position: absolute;
-            top: 15px; left: 15px;
-            background: rgba(0, 15, 30, 0.8);
+            top: 15px; 
+            left: 170px;
+            background: rgba(0, 15, 30, 0.85);
             border: 1px solid #00f7ff;
             padding: 10px 20px;
             border-radius: 30px;
@@ -359,6 +374,46 @@
         }
         .slot:hover { background: rgba(0, 247, 255, 0.18); }
 
+        /* 😱 👻 ป็อบอัพผีตกใจเมื่อตอบผิด (Jumpscare Ghost) */
+        #jumpscare-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 0, 0, 0.95);
+            z-index: 200;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+        #jumpscare-overlay.active {
+            display: flex;
+            animation: redFlash 0.25s ease infinite alternate;
+        }
+        .jumpscare-ghost {
+            font-size: 22rem;
+            line-height: 1;
+            filter: drop-shadow(0 0 50px #ff0033) drop-shadow(0 0 100px #ff0000);
+            animation: scareShake 0.12s infinite alternate;
+        }
+        .jumpscare-text {
+            font-size: 3.5rem;
+            color: #ff0033;
+            font-weight: 900;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #000;
+            margin-top: 10px;
+            letter-spacing: 4px;
+        }
+
+        @keyframes redFlash {
+            0% { background: rgba(30, 0, 0, 0.92); }
+            100% { background: rgba(90, 0, 0, 0.97); }
+        }
+        @keyframes scareShake {
+            0% { transform: scale(1.1) translate(-12px, -12px) rotate(-6deg); }
+            100% { transform: scale(1.4) translate(12px, 12px) rotate(6deg); }
+        }
+
         /* Result Screen */
         #result-screen {
             background: rgba(2, 10, 25, 0.95);
@@ -372,12 +427,15 @@
 <body>
 
     <div id="game-container">
+        <!-- 🖼️ รูปโลโก้คนสร้างเกม (t.png) มุมบนซ้าย -->
+        <img id="creator-logo" src="./t.png" alt="Creator Logo" onerror="this.style.display='none'">
+
         <!-- Glow Overlay & Dynamic Ambient Layers -->
         <div class="glow-overlay"></div>
         <div id="orbs-layer"></div>
         <div id="ghosts-layer"></div>
 
-        <!-- Canvas สำหรับไฟลอยล่อง (แสดงผลทุกหน้า) -->
+        <!-- Canvas สำหรับไฟลอยล่อง -->
         <canvas id="global-embers-canvas"></canvas>
 
         <!-- Audio Toggle Button -->
@@ -426,6 +484,13 @@
             <canvas id="fx-canvas"></canvas>
         </div>
 
+        <!-- 😱👻 ป็อบอัพผีหลอกเมื่อตอบผิด (Jumpscare Popup) -->
+        <div id="jumpscare-overlay">
+            <div class="jumpscare-ghost">👻</div>
+            <!-- อัปเดตข้อความใหม่เป็น "ผิด แฮ่ๆ" -->
+            <div class="jumpscare-text">ผิด แฮ่ๆ</div>
+        </div>
+
         <!-- Result Screen -->
         <div id="result-screen" class="screen">
             <h1 id="result-title" class="result-title">สรุปผลการแข่งขัน</h1>
@@ -435,8 +500,6 @@
     </div>
 
     <script>
-        /* ---------------- Generator คำถามแบบห้ามเลขซ้ำ & บอสสุดท้าทาย ---------------- */
-        
         function generateUniqueNumbers() {
             const set = new Set();
             while (set.size < 5) {
@@ -447,7 +510,6 @@
 
         function generateTrickyBossNumbers() {
             const set = new Set();
-            
             const d1 = Math.floor(Math.random() * 8) + 1;
             const d2 = 0;
             const d3 = (d1 + Math.floor(Math.random() * 7) + 1) % 10;
@@ -472,7 +534,6 @@
             return Array.from(set).slice(0, 5);
         }
 
-        /* 10 Map Node Locations */
         const NODE_POSITIONS = [
             { x: 88, y: 18 }, { x: 70, y: 25 }, { x: 50, y: 15 },
             { x: 30, y: 32 }, { x: 45, y: 50 }, { x: 75, y: 52 },
@@ -480,7 +541,6 @@
             { x: 15, y: 82 }
         ];
 
-        /* State Variables */
         let currentStage = 0;
         let score = 0;
         let selectedQuestions = [];
@@ -489,11 +549,9 @@
         let audioCtx = null;
         let activeSelectedCard = null;
 
-        /* Ambient Audio Variables (Piano Synth Loop) */
         let pianoInterval = null;
         let isPianoPlaying = false;
 
-        /* 👻 ระบบคำนวณการเคลื่อนที่ของผี (Ghost Physics Engine) */
         const ghosts = [
             { id: 'roaming-ghost-1', x: 20, y: 30, vx: 0.15, vy: 0.12, angle: 0, speed: 0.02 },
             { id: 'roaming-ghost-2', x: 70, y: 60, vx: -0.18, vy: 0.1, angle: Math.PI, speed: 0.025 }
@@ -508,7 +566,6 @@
                 g.x += g.vx + Math.sin(g.angle) * 0.15;
                 g.y += g.vy + Math.cos(g.angle * 0.8) * 0.15;
 
-                // ชนขอบแล้วเด้งกลับ
                 if (g.x < 5 || g.x > 90) g.vx *= -1;
                 if (g.y < 10 || g.y > 85) g.vy *= -1;
 
@@ -534,7 +591,7 @@
             }, 1200);
         }
 
-        /* ---------------- Web Audio API & Soft Piano Synthesizer ---------------- */
+        /* ---------------- Web Audio API Sound System ---------------- */
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -566,6 +623,46 @@
             } catch(e){}
         }
 
+        /* 🔊 👻 ฟังก์ชันสร้างเสียงเอฟเฟกต์ผีหลอกหลอนๆ (Ghost Jumpscare SFX) */
+        function playGhostJumpscareSound() {
+            if (audioMuted || !audioCtx) return;
+            try {
+                const now = audioCtx.currentTime;
+
+                // 1. เสียงกรีดร้องสั่นสะพรึง (Sawtooth Osc with Tremolo)
+                const osc1 = audioCtx.createOscillator();
+                const gain1 = audioCtx.createGain();
+                osc1.type = 'sawtooth';
+                
+                // ความถี่เสียงสไลด์ลงเพิ่มความหลอน
+                osc1.frequency.setValueAtTime(800, now);
+                osc1.frequency.exponentialRampToValueAtTime(120, now + 0.9);
+
+                gain1.gain.setValueAtTime(0.4, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.95);
+
+                // 2. เสียงเบสทึบกระแทก (Sub-bass Drop Effect)
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.type = 'square';
+                osc2.frequency.setValueAtTime(180, now);
+                osc2.frequency.exponentialRampToValueAtTime(40, now + 0.8);
+
+                gain2.gain.setValueAtTime(0.5, now);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start(now);
+                osc2.stop(now + 0.85);
+            } catch(e){}
+        }
+
         function startPianoAmbient() {
             if (isPianoPlaying) return;
             isPianoPlaying = true;
@@ -593,11 +690,6 @@
             playPianoNote(523.25, 0.6, 0.12);
             setTimeout(() => playPianoNote(659.25, 0.6, 0.12), 120);
             setTimeout(() => playPianoNote(783.99, 0.9, 0.15), 240);
-        }
-
-        function soundWrong() {
-            playPianoNote(311.13, 0.6, 0.12);
-            setTimeout(() => playPianoNote(293.66, 0.8, 0.12), 150);
         }
 
         function soundFanfare() {
@@ -664,7 +756,6 @@
             requestAnimationFrame(animateGlobalEmbers);
         }
 
-        /* ---------------- Ambient Effects ---------------- */
         function spawnAmbientEffects() {
             const ghostLayer = document.getElementById('ghosts-layer');
             const orbLayer = document.getElementById('orbs-layer');
@@ -797,7 +888,7 @@
             setTimeout(callback, 850);
         }
 
-        /* ---------------- Dual Interaction: Drag & Drop + Click-to-Select ---------------- */
+        /* ---------------- Dual Interaction ---------------- */
         let currentDragItem = null;
 
         function showQuizModal() {
@@ -945,12 +1036,31 @@
                 score++;
                 stageResults[currentStage] = true;
                 nodeEl.classList.add('passed-correct');
+                proceedToNextStep();
             } else {
-                soundWrong();
                 stageResults[currentStage] = false;
                 nodeEl.classList.add('passed-wrong');
+                
+                // 😱 เล่นเสียงผีหลอก + แสดงป็อบอัพตกใจ
+                triggerJumpscare(() => {
+                    proceedToNextStep();
+                });
             }
+        }
 
+        /* 😱 ฟังก์ชันแสดงผีตกใจเต็มจอ พร้อมเอฟเฟกต์เสียงกรีดร้อง */
+        function triggerJumpscare(callback) {
+            playGhostJumpscareSound(); // เล่นเสียงผีหลอก
+            const jumpscare = document.getElementById('jumpscare-overlay');
+            jumpscare.classList.add('active');
+
+            setTimeout(() => {
+                jumpscare.classList.remove('active');
+                if (callback) callback();
+            }, 1250);
+        }
+
+        function proceedToNextStep() {
             updateHUD();
 
             setTimeout(() => {
